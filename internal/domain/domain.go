@@ -66,6 +66,60 @@ func (lb *Lobby) EliminatePlayer(playerID string) {
 }
 
 func (lb *Lobby) StartGameLoop() {
+	log.Println("Starting game loop")
+
+	go func() {
+		for {
+			<-lb.StartGame
+
+			for len(lb.Players) > 1 {
+				lb.Mutext.Lock()
+				it := rand.IntN(len(lb.Players))
+				potatoHolder := lb.Players[it].ID
+				lb.Mutext.Unlock()
+
+				log.Printf("The player holding the potato is: %v", potatoHolder)
+				lb.Broadcast("Player " + potatoHolder + " is holding the potato")
+
+				timer := time.After(30 * time.Second)
+				ticker := time.NewTicker(5 * time.Second)
+
+				gameOver := false
+				for !gameOver {
+					select {
+					case <-timer:
+						lb.Broadcast("Player " + potatoHolder + " is eliminated!")
+						log.Printf("Loser player: %v", potatoHolder)
+						lb.EliminatePlayer(potatoHolder)
+						gameOver = true
+					case <-ticker.C:
+						lb.Mutext.Lock()
+						if len(lb.Players) <= 1 {
+							lb.Mutext.Unlock()
+							gameOver = true
+							break
+						}
+						it := rand.IntN(len(lb.Players))
+						potatoHolder = lb.Players[it].ID
+						lb.Mutext.Unlock()
+
+						lb.Broadcast("Player " + potatoHolder + " is holding the potato")
+						log.Printf("New player holding the potato is: %v", potatoHolder)
+					}
+				}
+			}
+
+			// Announce winner
+			lb.Mutext.Lock()
+			if len(lb.Players) == 1 {
+				lb.Broadcast("Player " + lb.Players[0].ID + " is the winner!")
+			}
+			lb.Mutext.Unlock()
+		}
+	}()
+}
+
+/*func (lb *Lobby) StartGameLoop() {
 	log.Printf("Starting game loop")
 	potato := Potato{}
 
@@ -105,4 +159,4 @@ func (lb *Lobby) StartGameLoop() {
 		}
 	}()
 
-}
+}*/
